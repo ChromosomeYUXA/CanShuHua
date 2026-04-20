@@ -29,6 +29,13 @@ jobs:
           npm i @rollup/rollup-linux-x64-gnu --no-save || true
           npm rebuild || true
 
+      - name: Ensure native bindings for lightningcss
+        run: |
+          # Try rebuilding native modules from source
+          npm rebuild --build-from-source || true
+          # Try installing lightningcss to fetch its prebuilt binary if available
+          npm i lightningcss --no-save || true
+
       - name: Build
         run: npm run build
 
