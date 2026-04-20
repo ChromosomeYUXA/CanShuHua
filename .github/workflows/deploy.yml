@@ -5,12 +5,18 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-      NPM_CONFIG_OPTIONAL: 'false'
 
     steps:
       - name: Checkout repository
@@ -19,29 +25,23 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version: '18'
+          node-version: '22'
+          cache: npm
 
       - name: Install dependencies
-        run: npm ci
-
-      - name: Ensure Rollup native binding (fix optional install issues)
-        run: |
-          npm i @rollup/rollup-linux-x64-gnu --no-save || true
-          npm rebuild || true
-
-      - name: Ensure native bindings for lightningcss
-        run: |
-          # Try rebuilding native modules from source
-          npm rebuild --build-from-source || true
-          # Try installing lightningcss to fetch its prebuilt binary if available
-          npm i lightningcss --no-save || true
+        run: npm install
 
       - name: Build
         run: npm run build
 
-      - name: Deploy to GitHub Pages (no artifact action)
-        uses: JamesIves/github-pages-deploy-action@v4
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact for GitHub Pages
+        uses: actions/upload-pages-artifact@v3
         with:
-          branch: gh-pages
-          folder: dist
-          token: ${{ secrets.GITHUB_TOKEN }}
+          path: ./dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
