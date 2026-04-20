@@ -26,6 +26,11 @@ export default function App() {
     paramsRef.current = params;
   }, [params]);
 
+  // Load default model on mount
+  useEffect(() => {
+    setModelUrl('./models/sculpture.glb');
+  }, []);
+
   const handleGenerate = useCallback(async () => {
     setIsGenerating(true);
     setError(null);
