@@ -6,3 +6,7 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Ensure package-lock and binaries are not committed
+package-lock.json
+*.node
