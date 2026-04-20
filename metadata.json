@@ -1,0 +1,5 @@
+{
+  "name": "AI 3D Sculpture Generator",
+  "description": "An AI-powered system for parametric 3D sculpture generation and real-time visualization.",
+  "requestFramePermissions": []
+}

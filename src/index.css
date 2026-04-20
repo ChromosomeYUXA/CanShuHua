@@ -1,0 +1,248 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Space+Grotesk:wght@400;700&display=swap');
+
+:root{
+	--bg: #030303;
+	--accent: #ffd400;
+	--muted: #2b2b2b;
+	--panel: rgba(255,212,0,0.06);
+	--glass: rgba(255,255,255,0.02);
+	--text: #fff2d9;
+}
+
+html,body,#root{height:100%;}
+
+/* 应用在应用根元素上的主题类 */
+.cipher-root{
+	background-color: var(--bg);
+	color: var(--text);
+	font-family: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+	background-image: radial-gradient(circle at 70% 85%, rgba(255,212,0,0.06) 0%, transparent 28%),
+										radial-gradient(circle at 20% 15%, rgba(255,212,0,0.03) 0%, transparent 18%);
+}
+
+/* Hero 标题 风格 */
+.cipher-hero{
+	font-family: 'Share Tech Mono', monospace;
+	color: var(--accent);
+	letter-spacing: 4px;
+	text-transform: uppercase;
+}
+
+/* Landing / hero styles */
+.cipher-topbar{
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 48px;
+	background: var(--accent);
+	display: flex;
+	align-items: center;
+	padding: 0 18px;
+	z-index: 40;
+}
+.cipher-topbar .brand{
+	color: #000;
+	font-weight: 700;
+	font-size: 13px;
+}
+
+.cipher-landing-hero{
+	position: absolute;
+	top: 72px;
+	left: 36px;
+	max-width: 62%;
+	z-index: 10;
+}
+
+.cipher-hero-large{
+	font-family: 'Share Tech Mono', monospace;
+	color: var(--accent);
+	font-size: clamp(36px, 6vw, 96px);
+	line-height: 0.9;
+	letter-spacing: 6px;
+	text-transform: uppercase;
+	margin: 0 0 18px 0;
+}
+
+.cipher-hero-sub{
+	color: rgba(255,212,0,0.18);
+	font-size: 12px;
+	margin-top: 8px;
+}
+
+/* bottom cards */
+.cipher-card-row{
+	position: absolute;
+	bottom: 120px;
+	left: 32px;
+	right: 32px;
+	display: flex;
+	gap: 18px;
+	z-index: 8;
+}
+.cipher-card{
+	flex: 1 1 0;
+	padding: 18px;
+	border: 1px solid rgba(255,212,0,0.06);
+	background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));
+	color: var(--accent);
+	min-height: 84px;
+	box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+}
+.cipher-card h4{
+	font-family: 'Share Tech Mono', monospace;
+	margin: 0 0 8px 0;
+	font-size: 14px;
+}
+
+/* large dotted globe hint (background decoration) */
+.cipher-landing-bg::after{
+	content: '';
+	position: absolute;
+	right: 6%;
+	bottom: 0;
+	width: 560px;
+	height: 280px;
+	background: radial-gradient(circle at 60% 40%, rgba(255,212,0,0.08) 0%, transparent 50%);
+	border-radius: 50%;
+	filter: blur(14px);
+	opacity: 0.65;
+	pointer-events: none;
+}
+
+/* 面板风格 */
+.cipher-panel{
+	background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+	border: 1px solid rgba(255,212,0,0.06);
+	box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+}
+
+/* 微调表单元素高亮 */
+.cipher-accent{
+	color: var(--accent);
+}
+
+.cipher-accent-bg{
+	background-color: var(--accent);
+}
+
+.cipher-focus-ring:focus{
+	outline: 2px solid rgba(255,212,0,0.18);
+	outline-offset: 2px;
+}
+
+/* Sidebar specific styles */
+.cipher-sidebar{ 
+	background: linear-gradient(180deg, rgba(255,212,0,0.02), transparent);
+	border-left: 1px solid rgba(255,212,0,0.04);
+}
+
+.cipher-panel{
+	background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+	border: 1px solid rgba(255,212,0,0.06);
+	box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+	padding: 14px;
+	border-radius: 10px;
+}
+
+.cipher-chat-bubble-ai{
+	background: rgba(255,255,255,0.02);
+	color: var(--text);
+	border: 1px solid rgba(255,212,0,0.03);
+}
+
+.cipher-chat-bubble-user{
+	background: var(--accent);
+	color: black;
+}
+
+.cipher-range::-webkit-slider-thumb{
+	-webkit-appearance: none;
+	width: 14px;
+	height: 14px;
+	border-radius: 999px;
+	background: var(--accent);
+	box-shadow: 0 2px 6px rgba(255,212,0,0.12);
+}
+
+.cipher-small-muted{
+	color: rgba(255,212,0,0.45);
+	font-size: 12px;
+}
+
+/* Labels for controls in the sidebar - slightly stronger yellow */
+.cipher-label{
+	color: rgba(255,212,0,0.60);
+}
+
+/* Custom scrollbar for the sidebar */
+.cipher-sidebar ::-webkit-scrollbar{
+	width: 10px;
+}
+.cipher-sidebar ::-webkit-scrollbar-track{
+	background: transparent;
+}
+.cipher-sidebar ::-webkit-scrollbar-thumb{
+	background: var(--accent);
+	border-radius: 999px;
+	border: 2px solid rgba(0,0,0,0.35);
+}
+.cipher-sidebar ::-webkit-scrollbar-thumb:hover{
+	background: #ffdf5a;
+}
+
+/* Firefox scrollbar */
+.cipher-sidebar{
+	scrollbar-width: thin;
+	scrollbar-color: var(--accent) transparent;
+}
+
+/* Improve range track appearance */
+.cipher-range{
+	height: 10px;
+	background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+	border-radius: 999px;
+}
+.cipher-range::-webkit-slider-runnable-track{
+	height: 10px;
+	border-radius: 999px;
+}
+
+/* Small floating badges used for status/perf */
+.cipher-badge{
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 12px;
+	border-radius: 999px;
+	font-size: 12px;
+	line-height: 1;
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+}
+.cipher-badge--accent{
+	background: rgba(10,10,10,0.45);
+	color: #d6c86a;
+	border: 1px solid rgba(214,200,106,0.12);
+	box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+}
+.cipher-badge--muted{
+	background: rgba(6,30,24,0.45);
+	color: #7fe0a3;
+	border: 1px solid rgba(127,224,163,0.08);
+	box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+}
+.cipher-badge .badge-icon{
+	width: 18px;
+	height: 18px;
+	display: inline-grid;
+	place-items: center;
+	border-radius: 999px;
+	background: rgba(255,255,255,0.03);
+	font-size: 12px;
+}
+
+
+
