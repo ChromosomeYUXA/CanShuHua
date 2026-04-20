@@ -206,7 +206,7 @@ async function startServer() {
       
       if (success && fs.existsSync(outputPath)) {
         console.log(`[PERF] 生成完成 - 总耗时: ${totalTime}ms, Blender处理: ${blenderTime}ms`);
-        res.json({ success: true, modelUrl: `/models/output.glb?t=${Date.now()}`, duration: totalTime });
+        res.json({ success: true, modelUrl: `./models/output.glb?t=${Date.now()}`, duration: totalTime });
       } else {
         console.log(`[PERF] 生成失败 - 耗时: ${totalTime}ms`);
         res.json({ success: false, error: "模型生成失败" });
