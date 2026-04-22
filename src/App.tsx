@@ -11,6 +11,16 @@ const DEFAULT_PARAMS: SculptureParams = {
   twist_angle: 180
 };
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+
+function backendUrl(path: string) {
+  if (!API_BASE_URL) {
+    return path;
+  }
+
+  return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 export default function App() {
   const [params, setParams] = useState<SculptureParams>(DEFAULT_PARAMS);
 
@@ -40,7 +50,7 @@ export default function App() {
       const requestStart = performance.now();
       requestStartRef.current = requestStart;
       console.log("[DEBUG] 开始生成请求...");
-      const response = await fetch("/api/generate", {
+      const response = await fetch(backendUrl("/api/generate"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(currentParams),
@@ -53,7 +63,7 @@ export default function App() {
           console.warn("Using frontend fallback visualization.");
           setModelUrl(null); // 这将触发 ThreeScene 中的 fallback 渲染
         } else {
-          setModelUrl(data.modelUrl);
+          setModelUrl(backendUrl(data.modelUrl));
           const serverDuration = Number(data.duration);
           const localDuration = Math.round(performance.now() - requestStart);
           const finalDuration = Number.isFinite(serverDuration) && serverDuration > 0
