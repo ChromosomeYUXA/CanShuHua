@@ -31,7 +31,7 @@ jobs:
 
       - name: Build
         env:
-          VITE_API_BASE_URL: http://14.103.68.116:3000
+          VITE_API_BASE_URL: https://api.yuxastudio.top
         run: npm run build
 
       - name: Deploy dist to gh-pages branch
