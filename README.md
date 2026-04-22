@@ -10,11 +10,24 @@ View your app in AI Studio: https://ai.studio/apps/1c14076d-300f-4e90-b85a-95245
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
-
+**Prerequisites:** Node.js, Blender (local) if running the backend with Blender on your machine.
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+
+2. Create a `.env` file from `.env.example` and set your values (especially `BLENDER_PATH` and `BLEND_FILE`).
+
+Run on Windows (PowerShell helper):
+
+```powershell
+# edit scripts/run-local.ps1 to point BLENDER_PATH at your local Blender
+powershell -ExecutionPolicy Bypass -File scripts\run-local.ps1
+```
+
+Run on Linux (quick test / ECS):
+
+```bash
+cp .env.example .env
+# edit .env to set BLENDER_PATH and BLEND_FILE
+./scripts/run-ecs.sh
+```

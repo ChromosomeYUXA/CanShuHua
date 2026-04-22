@@ -3,7 +3,7 @@
 本指南对应当前代码实现，核心是 Blender 守护进程常驻运行，前端参数实时变更后自动触发生成。
 
 ## 快速启动
-1. 将 Blender 源文件放在项目根目录，文件名建议保持为 参数化.blend。
+1. 将 Blender 源文件放在项目根目录，文件名建议保持为 param.blend。
 2. 在 server.ts 中修改 Blender 路径：
   const blenderPath = "E:\\Program\\Steam\\steamapps\\common\\Blender\\blender.exe";
 3. 安装依赖并启动：
@@ -11,7 +11,7 @@
   npm run dev
 
 ## 当前系统架构
-- 参数化.blend：Blender 源文件。
+- param.blend：Blender 源文件。
 - blender_daemon.py：守护进程脚本，接收参数并导出 GLB（当前主流程使用）。
 - server.ts：Express 服务，维护守护进程生命周期并提供 API。
 - src/types.ts：前后端参数类型。
@@ -30,7 +30,7 @@
 ## 场景一：更换 .blend 文件
 1. 将新 .blend 文件放入项目根目录。
 2. 修改 server.ts 中的 blendFilePath：
-  const blendFilePath = path.join(process.cwd(), "参数化.blend");
+  const blendFilePath = path.join(process.cwd(), "param.blend");
 3. 确保模型结构满足：
   - 对象名是 Sculpture
   - 修改器名是 GeometryNodes

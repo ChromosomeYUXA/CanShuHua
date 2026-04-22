@@ -1,0 +1,19 @@
+[Unit]
+Description=AI Sculpt Backend
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/ai-sculpt
+# 指定一个包含环境变量的文件（替换为实际路径）
+EnvironmentFile=/home/ubuntu/ai-sculpt/.env
+
+# 推荐使用 npx tsx 以便直接运行 TypeScript
+ExecStart=/usr/bin/env npx tsx server.ts
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

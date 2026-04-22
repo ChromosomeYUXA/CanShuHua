@@ -5,12 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
+    "dev:local": "powershell -ExecutionPolicy Bypass -File scripts\\run-local.ps1",
+    "dev:ecs": "bash ./scripts/run-ecs.sh",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "@google/genai": "^1.29.0",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",

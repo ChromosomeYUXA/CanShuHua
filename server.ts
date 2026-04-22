@@ -1,6 +1,8 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import dotenv from "dotenv";
+import cors from "cors";
 import { spawn, ChildProcess } from "child_process";
 import fs from "fs";
 import readline from "readline";
@@ -158,10 +160,26 @@ async function sendToBlenderDaemon(params: any, outputPath: string): Promise<boo
 }
 
 async function startServer() {
+  dotenv.config();
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 
   app.use(express.json());
+
+  // CORS 设置：允许来自前端静态站点的请求
+  const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || ""; // 逗号分隔
+  const allowedOrigins = allowedOriginsEnv.split(",").map(s => s.trim()).filter(Boolean);
+
+  app.use(cors({
+    origin: function(origin, callback) {
+      // allow requests with no origin (like curl or same-origin)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.length === 0 || allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("Not allowed by CORS"));
+    }
+  }));
 
   // 确保模型目录存在
   if (!fs.existsSync(modelsDir)) {
@@ -171,9 +189,9 @@ async function startServer() {
   // 静态文件服务：确保 public 目录下的文件可以被访问
   app.use(express.static(path.join(process.cwd(), "public")));
 
-  // 配置信息
-  const blenderPath = "E:\\Program\\Steam\\steamapps\\common\\Blender\\blender.exe"; 
-  const blendFilePath = path.join(process.cwd(), "参数化.blend");
+  // 配置信息（优先使用环境变量）
+  const blenderPath = process.env.BLENDER_PATH || "blender";
+  const blendFilePath = process.env.BLEND_FILE || path.join(process.cwd(), "param.blend");
 
   // API 路由：生成模型
   app.post("/api/generate", async (req, res) => {
