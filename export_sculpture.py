@@ -18,8 +18,10 @@ parser = argparse.ArgumentParser()
 # [PY: ARG_PARSE] 如果增加了新参数，请在这里添加对应的 add_argument
 parser.add_argument("--count", type=int, default=100, help="雕塑的切片数量")
 parser.add_argument("--length", type=float, default=15.0, help="雕塑的长度")
+parser.add_argument("--wave", type=float, default=1.0, help="雕塑的波浪幅度")
 parser.add_argument("--thickness", type=float, default=0.06, help="切片的厚度")
 parser.add_argument("--twist", type=int, default=90, help="雕塑的总扭曲角度")
+parser.add_argument("--incline", type=float, default=0.0, help="雕塑的倾斜角度")
 parser.add_argument("--output", type=str, default="output_sculpture.glb", help="输出路径")
 
 args = parser.parse_args(argv)
@@ -66,8 +68,10 @@ if modifier:
     # 注意：第二个参数必须与 Blender 几何节点面板上的显示名称完全一致
     set_gn_value(modifier, "Slice_Count", args.count)
     set_gn_value(modifier, "Twist_Angle", args.twist)
-    set_gn_value(modifier, "length", args.length)
+    set_gn_value(modifier, "Length", args.length)
+    set_gn_value(modifier, "Wave", args.wave)
     set_gn_value(modifier, "Thickness", args.thickness)
+    set_gn_value(modifier, "Incline", args.incline)
 else:
     print("❌ 错误: 找不到 GeometryNodes 修改器！")
     sys.exit(1)

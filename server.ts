@@ -98,8 +98,12 @@ async function sendToBlenderDaemon(params: any, outputPath: string): Promise<boo
     const request = JSON.stringify({
       count: params.slice_count,
       length: params.length,
+      wave: params.wave,
       thickness: params.thickness,
       twist: params.twist_angle,
+      incline: params.incline,
+      mirror_x: params.mirror_x,
+      profile_scales: params.profile_scales,
       output: outputPath
     });
 
@@ -196,7 +200,18 @@ async function startServer() {
   // API 路由：生成模型
   app.post("/api/generate", async (req, res) => {
     // [SERVER: API_RECEIVE] 如果增加了新参数，请在这里解构它
-    const { slice_count, length, thickness, twist_angle } = req.body;
+    const { slice_count, length, wave, thickness, twist_angle, incline, mirror_x } = req.body;
+    const count = Number(slice_count) || 1;
+    const profile_scales = Array.isArray(req.body.profile_scales)
+      ? req.body.profile_scales.slice(0, count).map((value: unknown) => {
+          const scale = Number(value);
+          return Number.isFinite(scale) ? scale : 1;
+        })
+      : [];
+
+    while (profile_scales.length < count) {
+      profile_scales.push(1);
+    }
     
     const startTime = Date.now();
     console.log("[API] 收到生成请求，参数:", req.body);
@@ -218,7 +233,7 @@ async function startServer() {
 
       // 向守护进程发送请求
       const sendTime = Date.now();
-      const success = await sendToBlenderDaemon({ slice_count, length, thickness, twist_angle }, outputPath);
+      const success = await sendToBlenderDaemon({ slice_count, length, wave, thickness, twist_angle, incline, mirror_x, profile_scales }, outputPath);
       const totalTime = Date.now() - startTime;
       const blenderTime = Date.now() - sendTime;
       

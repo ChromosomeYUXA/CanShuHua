@@ -1,14 +1,25 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import ThreeScene from "./components/ThreeScene.tsx";
 import Sidebar from "./components/Sidebar";
-import { SculptureParams } from "./types";
+import { ProfilePoint, SculptureParams } from "./types";
 import { Box, Info } from "lucide-react";
+
+const DEFAULT_PROFILE_POINTS: ProfilePoint[] = [
+  { x: 0.0, y: 0.7 },
+  { x: 1 / 3, y: 1.2 },
+  { x: 2 / 3, y: 1.2 },
+  { x: 1.0, y: 0.7 },
+];
 
 const DEFAULT_PARAMS: SculptureParams = {
   slice_count: 20,
   length: 8.0,
+  wave: 1.0,
   thickness: 0.3,
-  twist_angle: 180
+  twist_angle: 180,
+  incline: 0,
+  mirror_x: true,
+  profile_points: DEFAULT_PROFILE_POINTS,
 };
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
@@ -19,6 +30,34 @@ function backendUrl(path: string) {
   }
 
   return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+function sampleProfileCurve(points: ProfilePoint[], t: number) {
+  const sortedPoints = [...points].sort((a, b) => a.x - b.x);
+
+  if (sortedPoints.length === 0) return 1;
+  if (t <= sortedPoints[0].x) return sortedPoints[0].y;
+  if (t >= sortedPoints[sortedPoints.length - 1].x) return sortedPoints[sortedPoints.length - 1].y;
+
+  for (let i = 0; i < sortedPoints.length - 1; i += 1) {
+    const left = sortedPoints[i];
+    const right = sortedPoints[i + 1];
+
+    if (t >= left.x && t <= right.x) {
+      const span = Math.max(0.0001, right.x - left.x);
+      const localT = (t - left.x) / span;
+      return left.y + (right.y - left.y) * localT;
+    }
+  }
+
+  return sortedPoints[sortedPoints.length - 1].y;
+}
+
+function sampleProfileScales(points: ProfilePoint[], sliceCount: number) {
+  return Array.from({ length: Math.max(1, sliceCount) }, (_, i) => {
+    const t = sliceCount === 1 ? 0 : i / (sliceCount - 1);
+    return Number(sampleProfileCurve(points, t).toFixed(4));
+  });
 }
 
 export default function App() {
@@ -47,13 +86,14 @@ export default function App() {
     setFrontendDuration(null);
     try {
       const currentParams = paramsRef.current;
+      const profile_scales = sampleProfileScales(currentParams.profile_points, currentParams.slice_count);
       const requestStart = performance.now();
       requestStartRef.current = requestStart;
       console.log("[DEBUG] 开始生成请求...");
       const response = await fetch(backendUrl("/api/generate"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(currentParams),
+        body: JSON.stringify({ ...currentParams, profile_scales }),
       });
       
       const data = await response.json();
@@ -103,11 +143,11 @@ export default function App() {
     console.log(`[PERF] 前端模型渲染完成 - 总耗时: ${renderDuration}ms`);
   }, []);
 
-  // 参数变化时自动生成（80ms 防抖）
+  // 参数变化时自动生成（300ms 防抖）
   useEffect(() => {
     const timer = setTimeout(() => {
       handleGenerate();
-    }, 80);
+    }, 300);
     
     return () => clearTimeout(timer);
   }, [params, handleGenerate]);
@@ -141,13 +181,13 @@ export default function App() {
 
         {/* 性能显示 */}
         {frontendDuration !== null && (
-          <div className="absolute bottom-6 right-6 bg-[#ffd400]/10 border border-[#ffd400]/20 text-[#ffd400] px-4 py-2 rounded-lg text-xs backdrop-blur-md">
+          <div className="absolute bottom-6 bg-[#ffd400]/10 border border-[#ffd400]/20 text-[#ffd400] px-4 py-2 rounded-lg text-xs backdrop-blur-md" style={{ right: "calc(var(--sidebar-width, 384px) + 24px)" }}>
             ⚡ 生成耗时: {duration !== null ? `${duration}ms` : '—'}
           </div>
         )}
 
         {frontendDuration !== null && (
-          <div className="absolute bottom-16 right-6 bg-[#ffd400]/10 border border-[#ffd400]/20 text-[#ffd400] px-4 py-2 rounded-lg text-xs backdrop-blur-md">
+          <div className="absolute bottom-16 bg-[#ffd400]/10 border border-[#ffd400]/20 text-[#ffd400] px-4 py-2 rounded-lg text-xs backdrop-blur-md" style={{ right: "calc(var(--sidebar-width, 384px) + 24px)" }}>
             🎨 前端渲染耗时: {frontendDuration}ms
           </div>
         )}

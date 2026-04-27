@@ -133,10 +133,44 @@ html,body,#root{height:100%;}
 	outline-offset: 2px;
 }
 
+.cipher-sky-scene{
+	background:
+		radial-gradient(circle at 78% 48%, rgba(255,213,124,0.44) 0%, rgba(255,196,96,0.18) 18%, transparent 42%),
+		linear-gradient(180deg, #132138 0%, #263341 42%, #8a7a5d 100%);
+}
+
 /* Sidebar specific styles */
 .cipher-sidebar{ 
-	background: linear-gradient(180deg, rgba(255,212,0,0.02), transparent);
-	border-left: 1px solid rgba(255,212,0,0.04);
+	background: linear-gradient(180deg, rgba(10,10,8,0.92), rgba(2,2,2,0.86));
+	border-left: 1px solid rgba(255,212,0,0.08);
+	box-shadow: -18px 0 50px rgba(0,0,0,0.55), inset 1px 0 0 rgba(255,255,255,0.02);
+	backdrop-filter: blur(14px);
+	-webkit-backdrop-filter: blur(14px);
+}
+
+.cipher-ai-panel{
+	background: rgba(3,3,3,0.68);
+	border: 1px solid rgba(255,212,0,0.08);
+	border-radius: 12px;
+	box-shadow: 0 20px 60px rgba(0,0,0,0.58), inset 0 1px 0 rgba(255,255,255,0.03);
+	backdrop-filter: blur(14px);
+	-webkit-backdrop-filter: blur(14px);
+}
+
+.cipher-ai-input{
+	border: 1px solid rgba(255,212,0,0.08);
+	border-radius: 12px;
+	background: rgba(0,0,0,0.24);
+}
+
+.cipher-ai-input:focus-within{
+	outline: 2px solid rgba(255,212,0,0.18);
+	outline-offset: 2px;
+}
+
+.cipher-ai-loading{
+	background: rgba(255,255,255,0.02);
+	border: 1px solid rgba(255,212,0,0.06);
 }
 
 .cipher-panel{
@@ -177,18 +211,49 @@ html,body,#root{height:100%;}
 	color: rgba(255,212,0,0.60);
 }
 
-/* Custom scrollbar for the sidebar */
+.cipher-number-input{
+	color-scheme: dark;
+	border-radius: 6px;
+	padding-block: 2px;
+	transition: background-color 150ms ease, box-shadow 150ms ease;
+}
+
+.cipher-number-input:hover,
+.cipher-number-input:focus{
+	background: rgba(255,212,0,0.06);
+	box-shadow: inset 0 0 0 1px rgba(255,212,0,0.12);
+}
+
+.cipher-number-input::-webkit-inner-spin-button,
+.cipher-number-input::-webkit-outer-spin-button{
+	width: 14px;
+	min-height: 18px;
+	margin-left: 4px;
+	border-radius: 999px;
+	background: rgba(255,212,0,0.08);
+	cursor: pointer;
+	filter: sepia(1) saturate(4) hue-rotate(356deg) brightness(1.08);
+	opacity: 0.85;
+}
+
+.cipher-number-input::-webkit-inner-spin-button:hover,
+.cipher-number-input::-webkit-outer-spin-button:hover{
+	opacity: 1;
+}
+
+/* Custom scrollbar thumb for the right sidebar */
+.cipher-sidebar::-webkit-scrollbar,
 .cipher-sidebar ::-webkit-scrollbar{
 	width: 10px;
 }
-.cipher-sidebar ::-webkit-scrollbar-track{
-	background: transparent;
-}
+.cipher-sidebar::-webkit-scrollbar-thumb,
 .cipher-sidebar ::-webkit-scrollbar-thumb{
-	background: var(--accent);
+	background: linear-gradient(180deg, rgba(255,212,0,0.85), rgba(255,212,0,0.45));
 	border-radius: 999px;
 	border: 2px solid rgba(0,0,0,0.35);
+	box-shadow: 0 0 10px rgba(255,212,0,0.18);
 }
+.cipher-sidebar::-webkit-scrollbar-thumb:hover,
 .cipher-sidebar ::-webkit-scrollbar-thumb:hover{
 	background: #ffdf5a;
 }
@@ -196,7 +261,7 @@ html,body,#root{height:100%;}
 /* Firefox scrollbar */
 .cipher-sidebar{
 	scrollbar-width: thin;
-	scrollbar-color: var(--accent) transparent;
+	scrollbar-color: var(--accent) auto;
 }
 
 /* Improve range track appearance */

@@ -1,152 +1,249 @@
 #!/usr/bin/env python3
-"""
-Blender 守护进程脚本
-作用：保持 Blender 在后台运行，接收参数更新并快速导出模型
-这样可以避免每次都重启 Blender，大幅减少响应时间
-"""
-
 import bpy
-import sys
 import json
 import os
+import sys
+import traceback
 
-# ==========================================
-# 1. 初始化：加载 .blend 文件
-# ==========================================
-print("[DAEMON] Blender 守护进程启动中...", flush=True)
+print("[DAEMON] Blender daemon starting...", flush=True)
 
-obj_name = "Sculpture"
-modifier_name = "GeometryNodes"
+OBJ_NAME = "Sculpture"
+MODIFIER_NAME = "GeometryNodes"
+PROFILE_OBJECT_NAME = "ProfileScales"
+PROFILE_ATTRIBUTE_NAME = "profile_scale"
 
-# 检查物体是否存在
-if obj_name not in bpy.data.objects:
-    print(f"[ERROR] 场景中找不到名为 '{obj_name}' 的物体！", flush=True)
+if OBJ_NAME not in bpy.data.objects:
+    print(f"[ERROR] Object '{OBJ_NAME}' not found", flush=True)
     sys.exit(1)
 
-obj = bpy.data.objects[obj_name]
-modifier = obj.modifiers.get(modifier_name)
+obj = bpy.data.objects[OBJ_NAME]
+modifier = obj.modifiers.get(MODIFIER_NAME)
 
 if not modifier:
-    print(f"[ERROR] 物体 '{obj_name}' 上找不到修改器 '{modifier_name}'！", flush=True)
+    print(f"[ERROR] Modifier '{MODIFIER_NAME}' not found on '{OBJ_NAME}'", flush=True)
     sys.exit(1)
 
-print("[DAEMON] 物体和修改器加载成功", flush=True)
+print("[DAEMON] Object and modifier loaded", flush=True)
 
-# ==========================================
-# 2. 参数赋值函数
-# ==========================================
-def set_gn_value(modifier, param_display_name, value):
-    """通过面板上显示的真实名字，自动寻找底层 ID 并赋值（Blender 4.x）"""
-    if not modifier.node_group:
-        print(f"[ERROR] 修改器没有 node_group", flush=True)
+
+def set_gn_value(target_modifier, param_display_name, value):
+    if not target_modifier.node_group:
+        print("[ERROR] Modifier has no node_group", flush=True)
         return False
-    
-    # 遍历 4.x 全新的接口树
-    for item in modifier.node_group.interface.items_tree:
-        # 确认它是一个输入接口，并且名字对得上
-        if getattr(item, "item_type", "") == 'SOCKET' and item.name == param_display_name:
+
+    expected_name = param_display_name.strip().lower()
+    for item in target_modifier.node_group.interface.items_tree:
+        item_name = getattr(item, "name", "")
+        if getattr(item, "item_type", "") == "SOCKET" and item_name.strip().lower() == expected_name:
             try:
-                modifier[item.identifier] = value
-                print(f"[GN] 参数已更新: {param_display_name} = {value}", flush=True)
+                target_modifier[item.identifier] = value
+                print(f"[GN] {item_name} = {value}", flush=True)
                 return True
-            except Exception as e:
-                print(f"[WARN] 设置参数 {param_display_name} 失败: {e}", flush=True)
+            except Exception as exc:
+                print(f"[WARN] Failed to set {item_name}: {exc}", flush=True)
                 return False
-    
-    print(f"[WARN] 找不到参数: {param_display_name}", flush=True)
+
+    print(f"[WARN] Parameter not found: {param_display_name}", flush=True)
+    available = [
+        getattr(item, "name", "")
+        for item in target_modifier.node_group.interface.items_tree
+        if getattr(item, "item_type", "") == "SOCKET"
+    ]
+    print(f"[WARN] Available GN parameters: {available}", flush=True)
     return False
 
-# ==========================================
-# 3. 导出模型函数
-# ==========================================
-def export_model(output_path):
-    """导出当前模型为 GLB 格式"""
+
+def vector_input_matches(value, expected, tolerance=0.0001):
     try:
-        # 确保输出目录存在
-        import os
+        return all(abs(float(value[index]) - expected[index]) <= tolerance for index in range(3))
+    except Exception:
+        return False
+
+
+def find_mirror_transform_node(target_modifier):
+    if not target_modifier.node_group:
+        return None
+
+    transform_nodes = [
+        node
+        for node in target_modifier.node_group.nodes
+        if getattr(node, "bl_idname", "") == "GeometryNodeTransform"
+    ]
+
+    for node in transform_nodes:
+        label = f"{getattr(node, 'name', '')} {getattr(node, 'label', '')}".lower()
+        if "mirror" in label or "symmetry" in label or "x_axis" in label:
+            return node
+
+    for node in transform_nodes:
+        scale_input = node.inputs.get("Scale")
+        if scale_input and vector_input_matches(scale_input.default_value, (-1.0, 1.0, 1.0)):
+            return node
+
+    return None
+
+
+def set_mirror_x_enabled(enabled):
+    mirror_value = -1.0 if enabled else 1.0
+    success = set_gn_value(modifier, "Mirror", mirror_value)
+    print(f"[MIRROR] mirror_x={enabled}, Mirror={mirror_value}, success={success}", flush=True)
+    return success
+
+
+def sanitize_profile_scales(raw_scales, count):
+    try:
+        count = max(1, int(count))
+    except Exception:
+        count = 1
+
+    if not isinstance(raw_scales, list):
+        return [1.0] * count
+
+    scales = []
+    for value in raw_scales[:count]:
+        try:
+            scale = float(value)
+            if scale != scale:
+                scale = 1.0
+        except Exception:
+            scale = 1.0
+        scales.append(max(0.05, min(10.0, scale)))
+
+    while len(scales) < count:
+        scales.append(1.0)
+
+    return scales
+
+
+def update_profile_carrier(profile_scales):
+    """Write profile scales to a mesh object GN can read via Object Info + attributes."""
+    mesh = bpy.data.meshes.get(PROFILE_OBJECT_NAME)
+    if mesh is None:
+        mesh = bpy.data.meshes.new(PROFILE_OBJECT_NAME)
+
+    carrier = bpy.data.objects.get(PROFILE_OBJECT_NAME)
+    if carrier is None:
+        carrier = bpy.data.objects.new(PROFILE_OBJECT_NAME, mesh)
+        bpy.context.collection.objects.link(carrier)
+    elif carrier.data != mesh:
+        carrier.data = mesh
+
+    count = max(1, len(profile_scales))
+    vertices = []
+    edges = []
+    for index, scale in enumerate(profile_scales):
+        t = 0 if count == 1 else index / (count - 1)
+        vertices.append((t, float(scale), 0.0))
+        if index > 0:
+            edges.append((index - 1, index))
+
+    mesh.clear_geometry()
+    mesh.from_pydata(vertices, edges, [])
+    mesh.update()
+
+    attribute = mesh.attributes.get(PROFILE_ATTRIBUTE_NAME)
+    if attribute is None or attribute.domain != "POINT" or attribute.data_type != "FLOAT":
+        if attribute is not None:
+            mesh.attributes.remove(attribute)
+        attribute = mesh.attributes.new(PROFILE_ATTRIBUTE_NAME, "FLOAT", "POINT")
+
+    for index, scale in enumerate(profile_scales):
+        attribute.data[index].value = float(scale)
+
+    carrier.hide_select = True
+    carrier.display_type = "WIRE"
+    carrier["profile_scales_json"] = json.dumps(profile_scales)
+    carrier["profile_count"] = count
+    obj["profile_count"] = count
+    obj["profile_scales_json"] = json.dumps(profile_scales)
+
+    print(f"[PROFILE] Updated {PROFILE_OBJECT_NAME} with {count} values", flush=True)
+    return carrier
+
+
+def export_model(output_path):
+    try:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        
-        # 清理选择
-        bpy.ops.object.select_all(action='DESELECT')
-        # 选中 Sculpture 和 buildings
+
+        bpy.ops.object.select_all(action="DESELECT")
         obj.select_set(True)
-        if 'buildings' in bpy.data.objects:
-            buildings_obj = bpy.data.objects['buildings']
-            buildings_obj.select_set(True)
-            # 设置 Sculpture 为激活对象（active）
-            bpy.context.view_layer.objects.active = obj
+        bpy.context.view_layer.objects.active = obj
+
+        if "buildings" in bpy.data.objects:
+            bpy.data.objects["buildings"].select_set(True)
         else:
-            print("[WARN] 未找到 buildings 对象，仅导出 Sculpture", flush=True)
-            bpy.context.view_layer.objects.active = obj
-        # 导出为 GLTF/GLB 格式
+            print("[WARN] Object 'buildings' not found; exporting sculpture only", flush=True)
+
         bpy.ops.export_scene.gltf(
             filepath=output_path,
             use_selection=True,
-            export_format='GLB',
-            export_apply=True
+            export_format="GLB",
+            export_apply=True,
         )
         return True
-    except Exception as e:
-        print(f"[ERROR] 导出失败: {e}", flush=True)
-        import traceback
+    except Exception as exc:
+        print(f"[ERROR] Export failed: {exc}", flush=True)
         traceback.print_exc()
         return False
 
-# ==========================================
-# 4. 守护进程主循环：处理参数请求
-# ==========================================
-print("[DAEMON] 进入守护进程模式，等待参数请求...", flush=True)
-print("[READY]", flush=True)  # 信号：准备好了
+
+print("[DAEMON] Ready for parameter requests", flush=True)
+print("[READY]", flush=True)
 
 while True:
     try:
-        # 从标准输入读取 JSON 格式的参数
         input_line = sys.stdin.readline().strip()
-        
+
         if not input_line:
-            # 如果输入为空，说明管道关闭了
-            print("[DAEMON] 输入管道关闭，守护进程退出", flush=True)
+            print("[DAEMON] stdin closed; exiting", flush=True)
             break
-        
-        # 解析 JSON
+
         request = json.loads(input_line)
-        
+
         count = request.get("count", 100)
         length = request.get("length", 15.0)
+        wave = request.get("wave", 1.0)
         thickness = request.get("thickness", 0.06)
         twist = request.get("twist", 90)
+        incline = request.get("incline", 0.0)
+        raw_mirror_x = request.get("mirror_x", True)
+        if isinstance(raw_mirror_x, str):
+            mirror_x = raw_mirror_x.strip().lower() not in ("false", "0", "off", "no")
+        else:
+            mirror_x = bool(raw_mirror_x)
         output_path = request.get("output", "output_sculpture.glb")
-        
-        print(f"[DAEMON] 收到请求: count={count}, length={length}, thickness={thickness}, twist={twist}", flush=True)
-        
-        # 更新参数（使用 Blender 修改器面板上的真实参数名）
+        profile_scales = sanitize_profile_scales(request.get("profile_scales"), count)
+
+        print(
+            f"[DAEMON] Request: count={count}, length={length}, wave={wave}, "
+            f"thickness={thickness}, twist={twist}, incline={incline}, mirror_x={mirror_x}, "
+            f"profile_scales={len(profile_scales)}",
+            flush=True,
+        )
+
         set_gn_value(modifier, "Slice_Count", count)
-        set_gn_value(modifier, "length", length)
+        set_gn_value(modifier, "Length", length)
+        set_gn_value(modifier, "Wave", wave)
         set_gn_value(modifier, "Thickness", thickness)
         set_gn_value(modifier, "Twist_Angle", twist)
-        
-        print("[DAEMON] 参数更新完成，刷新依赖图", flush=True)
-        
-        # 强制刷新依赖图（关键步骤）
+        set_gn_value(modifier, "Incline", incline)
+        set_mirror_x_enabled(mirror_x)
+        update_profile_carrier(profile_scales)
+
         obj.update_tag()
         bpy.context.view_layer.update()
-        
-        print("[DAEMON] 准备导出模型", flush=True)
-        
-        # 确保输出目录存在
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        
-        # 导出模型
+
+        print("[DAEMON] Exporting model", flush=True)
         if export_model(output_path):
-            print(f"[SUCCESS] 模型已导出到: {output_path}", flush=True)
+            print(f"[SUCCESS] Model exported to: {output_path}", flush=True)
         else:
-            print("[ERROR] 导出失败", flush=True)
-        
-    except json.JSONDecodeError as e:
-        print(f"[ERROR] JSON 解析失败: {e}", flush=True)
-    except Exception as e:
-        print(f"[ERROR] 处理请求时出错: {e}", flush=True)
-    
-    # 刷新输出缓冲，确保 server.ts 能读到
+            print("[ERROR] Export failed", flush=True)
+
+    except json.JSONDecodeError as exc:
+        print(f"[ERROR] JSON parse failed: {exc}", flush=True)
+    except Exception as exc:
+        print(f"[ERROR] Request failed: {exc}", flush=True)
+        traceback.print_exc()
+
     sys.stdout.flush()
     sys.stderr.flush()

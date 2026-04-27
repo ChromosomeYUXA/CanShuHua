@@ -1,0 +1,16 @@
+FROM node:20-slim
+
+WORKDIR /workspace
+
+# 安装依赖（包括 dev 依赖以便运行 tsx）
+COPY package.json package-lock.json* tsconfig.json* ./
+RUN npm ci --include=dev
+
+# 复制项目文件
+COPY . .
+
+ENV NODE_ENV=production
+EXPOSE 3000
+
+# 直接使用 npx tsx 运行 TypeScript 入口文件（与 dev:ecs 脚本一致）
+CMD ["npx", "tsx", "server.ts"]

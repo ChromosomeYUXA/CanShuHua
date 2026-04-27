@@ -1,6 +1,6 @@
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, useGLTF } from "@react-three/drei";
-import { Suspense, useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SculptureParams } from "../types";
 import * as THREE from "three";
 
@@ -8,6 +8,35 @@ interface Props {
   params: SculptureParams;
   modelUrl: string | null;
   onModelRendered?: () => void;
+}
+
+const MODEL_DISPLAY_OFFSET = new THREE.Vector3(0, 2.2, 0);
+const BACKGROUND_MODEL_Y_OFFSET = -1.8;
+
+function getVisibleMeshBounds(root: THREE.Object3D) {
+  root.updateWorldMatrix(true, true);
+
+  const box = new THREE.Box3();
+  const meshBox = new THREE.Box3();
+  let hasMesh = false;
+
+  root.traverse((child: any) => {
+    if (!child.visible || !child.isMesh || !child.geometry) return;
+
+    if (!child.geometry.boundingBox) {
+      child.geometry.computeBoundingBox();
+    }
+
+    if (!child.geometry.boundingBox) return;
+
+    meshBox.copy(child.geometry.boundingBox).applyMatrix4(child.matrixWorld);
+    if (meshBox.isEmpty()) return;
+
+    box.union(meshBox);
+    hasMesh = true;
+  });
+
+  return hasMesh ? box : new THREE.Box3().setFromObject(root);
 }
 
 function GltfModel({
@@ -20,24 +49,31 @@ function GltfModel({
   const gltf = useGLTF(url, false, true);
 
   const bounds = useMemo(() => {
-    const sculptureRoot = gltf.scene.getObjectByName("Sculpture") ?? gltf.scene;
-    const box = new THREE.Box3().setFromObject(sculptureRoot);
+    const sculptureRoot = gltf.scene.getObjectByName("Sculpture");
+    const box = getVisibleMeshBounds(sculptureRoot ?? gltf.scene);
     const center = new THREE.Vector3();
-    box.getCenter(center);
-    // 计算包围球半径，便于后续相机自适配
     const sphere = new THREE.Sphere();
+
+    if (box.isEmpty() && sculptureRoot) {
+      getVisibleMeshBounds(gltf.scene).getCenter(center);
+      getVisibleMeshBounds(gltf.scene).getBoundingSphere(sphere);
+      return {
+        center,
+        radius: sphere.radius,
+      };
+    }
+
+    box.getCenter(center);
     box.getBoundingSphere(sphere);
-    const radius = sphere.radius;
+
     return {
       center,
-      radius,
+      radius: sphere.radius,
     };
   }, [gltf.scene]);
 
   useEffect(() => {
-    if (!onRendered) {
-      return;
-    }
+    if (!onRendered) return;
 
     const frame = requestAnimationFrame(() => {
       onRendered({ center: bounds.center.clone(), radius: bounds.radius });
@@ -46,30 +82,72 @@ function GltfModel({
     return () => cancelAnimationFrame(frame);
   }, [onRendered, url, bounds]);
 
-  // 强制将 GLTF 中所有网格材质设为纯白（便于主题统一）
   useEffect(() => {
     try {
+      const backgroundModel = gltf.scene.getObjectByName("buildings");
+      if (backgroundModel) {
+        const originalY = typeof backgroundModel.userData.originalY === "number"
+          ? backgroundModel.userData.originalY
+          : backgroundModel.position.y;
+        backgroundModel.userData.originalY = originalY;
+        backgroundModel.position.y = originalY + BACKGROUND_MODEL_Y_OFFSET;
+      }
+
       gltf.scene.traverse((child: any) => {
-        if (child.isMesh) {
-          const mats = Array.isArray(child.material) ? child.material : [child.material];
-          mats.forEach((mat: any) => {
-            if (!mat) return;
-            if (mat.color) mat.color.set(0xffffff);
-            if (mat.emissive) mat.emissive.set(0x000000);
-            mat.metalness = typeof mat.metalness === 'number' ? mat.metalness : 0.2;
-            mat.roughness = typeof mat.roughness === 'number' ? mat.roughness : 0.4;
-            mat.needsUpdate = true;
-          });
-        }
+        if (!child.isMesh) return;
+
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        mats.forEach((mat: any) => {
+          if (!mat) return;
+          if (mat.color) mat.color.set(0xffffff);
+          if (mat.emissive) mat.emissive.set(0x000000);
+          mat.metalness = typeof mat.metalness === "number" ? mat.metalness : 0.2;
+          mat.roughness = typeof mat.roughness === "number" ? mat.roughness : 0.4;
+          mat.needsUpdate = true;
+        });
       });
     } catch (e) {
-      console.warn('[GltfModel] 强制白色材质失败', e);
+      console.warn("[GltfModel] Failed to normalize materials", e);
     }
   }, [gltf.scene]);
 
   return (
-    <group position={[-bounds.center.x, -bounds.center.y, -bounds.center.z]}>
+    <group position={[-bounds.center.x + MODEL_DISPLAY_OFFSET.x, -bounds.center.y + MODEL_DISPLAY_OFFSET.y, -bounds.center.z + MODEL_DISPLAY_OFFSET.z]}>
       <primitive object={gltf.scene} />
+    </group>
+  );
+}
+
+function ParametricPreview({ params }: { params: SculptureParams }) {
+  const previewCenter = useMemo(() => {
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+
+    for (let i = 0; i < params.slice_count; i += 1) {
+      const waveOffset = Math.sin(i * 0.45) * params.wave;
+      minX = Math.min(minX, waveOffset - 1);
+      maxX = Math.max(maxX, waveOffset + 1);
+    }
+
+    return new THREE.Vector3((minX + maxX) / 2, 0, params.length / 2).sub(MODEL_DISPLAY_OFFSET);
+  }, [params.length, params.slice_count, params.wave]);
+
+  return (
+    <group position={[-previewCenter.x, -previewCenter.y, -previewCenter.z]}>
+      {Array.from({ length: params.slice_count }).map((_, i) => {
+        const progress = i / Math.max(1, params.slice_count - 1);
+        const z = progress * params.length;
+        const angle = progress * (params.twist_angle * (Math.PI / 180));
+        const waveOffset = Math.sin(i * 0.45) * params.wave;
+        const inclineAngle = THREE.MathUtils.degToRad(params.incline);
+
+        return (
+          <mesh key={i} position={[waveOffset, 0, z]} rotation={[inclineAngle, 0, angle]} castShadow receiveShadow>
+            <boxGeometry args={[2, 0.5, params.thickness]} />
+            <meshStandardMaterial color={0xffffff} emissive={0x000000} metalness={0.35} roughness={0.45} />
+          </mesh>
+        );
+      })}
     </group>
   );
 }
@@ -83,158 +161,107 @@ function Model({
   params: SculptureParams;
   onRendered?: (info?: { center?: THREE.Vector3; radius?: number }) => void;
 }) {
-  const [error, setError] = useState(false);
+  const [errorUrl, setErrorUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!url) {
-      setError(false);
+      setErrorUrl(null);
       return;
     }
 
     const loader = new THREE.FileLoader();
     loader.load(
       url,
-      () => setError(false),
+      () => setErrorUrl(null),
       undefined,
-      (err) => {
-        console.warn("GLTF pre-load check failed:", err);
-        setError(true);
-      }
+      () => setErrorUrl(url),
     );
   }, [url]);
 
-  if (error || !url) {
-    return (
-      <group>
-        {Array.from({ length: params.slice_count }).map((_, i) => {
-          const z = (i / Math.max(1, params.slice_count - 1)) * params.length;
-          const angle = (i / Math.max(1, params.slice_count - 1)) * (params.twist_angle * (Math.PI / 180));
-          return (
-            <mesh key={i} position={[0, 0, z]} rotation={[0, 0, angle]} castShadow receiveShadow>
-              <boxGeometry args={[2, 0.5, params.thickness]} />
-              <meshStandardMaterial
-                color={0xffffff}
-                emissive={0x000000}
-                metalness={0.6}
-                roughness={0.25}
-              />
-            </mesh>
-          );
-        })}
-      </group>
-    );
+  if (!url || errorUrl === url) {
+    return <ParametricPreview params={params} />;
   }
 
   return <GltfModel key={url} url={url} onRendered={onRendered} />;
 }
 
-function LoadingPreview({ params }: { params: SculptureParams }) {
-  return (
-    <group>
-      {Array.from({ length: params.slice_count }).map((_, i) => {
-        const z = (i / Math.max(1, params.slice_count - 1)) * params.length;
-        const angle = (i / Math.max(1, params.slice_count - 1)) * (params.twist_angle * (Math.PI / 180));
-        return (
-            <mesh key={i} position={[0, 0, z]} rotation={[0, 0, angle]}>
-            <boxGeometry args={[2, 0.5, params.thickness]} />
-            <meshStandardMaterial color={0xffffff} emissive={0x000000} metalness={0.12} roughness={0.75} />
-          </mesh>
-        );
-      })}
-    </group>
-  );
+function ModelPreloader({ url, onLoaded }: { url: string; onLoaded: (url: string) => void }) {
+  useGLTF(url, false, true);
+
+  useEffect(() => {
+    onLoaded(url);
+  }, [url, onLoaded]);
+
+  return null;
 }
 
 export default function ThreeScene({ params, modelUrl, onModelRendered }: Props) {
   const cameraRef = useRef<any>(null);
   const controlsRef = useRef<any>(null);
+  const [displayedModelUrl, setDisplayedModelUrl] = useState<string | null>(modelUrl);
+  const fixedCameraDistance = 34;
+  const focusOffset = useMemo(() => new THREE.Vector3(2.4, 0, 0), []);
 
-  // 固定刷新后相机距离（单位与初始位置一致）
-  const RESET_CAMERA_DISTANCE = 14;
+  const handleModelRenderedInternal = useCallback(
+    () => {
+      const camera = cameraRef.current;
+      const controls = controlsRef.current;
 
-  // 当模型真正渲染完成后调用（由 GltfModel 的 onRendered 触发）
-  // 我们在这里重置相机到固定距离（相同方向），并在最后调用传入的 onModelRendered
-  const handleModelRenderedInternal = useCallback((info?: { center?: THREE.Vector3; radius?: number }) => {
-    const camera = cameraRef.current;
-    const controls = controlsRef.current;
-    if (!camera || !controls) {
-      if (onModelRendered) onModelRendered();
-      return;
-    }
-
-    try {
-      // GltfModel 会把模型中心平移到原点，因此目标直接使用原点
-      const target = new THREE.Vector3(0, 0, 0);
-
-      // 计算从目标指向相机的方向并归一化
-      const dir = new THREE.Vector3().subVectors(camera.position, target);
-      if (dir.length() === 0) dir.set(1, 1, 1).normalize();
-      else dir.normalize();
-
-      // 根据目标屏幕面积占比计算目标距离（目标面积占比：20%）
-      const AREA_FRACTION = 0.2; // 目标占屏幕面积的比例
-      const heightFraction = Math.sqrt(AREA_FRACTION); // 线性高度占比
-
-      let distance = RESET_CAMERA_DISTANCE;
-      if (info?.radius && info.radius > 0) {
-        const r = info.radius;
-        // 摄像机参数
-        const vFovDeg = camera.fov ?? 50; // 备用值
-        const vFov = THREE.MathUtils.degToRad(vFovDeg);
-        const aspect = camera.aspect || (window.innerWidth / window.innerHeight);
-
-        const tanHalfVFov = Math.tan(vFov / 2);
-        const hFov = 2 * Math.atan(tanHalfVFov * aspect);
-        const tanHalfHFov = Math.tan(hFov / 2);
-
-        // 目标高度占比对应的距离： d = r / (heightFraction * tan(fov/2))
-        const dV = r / (heightFraction * tanHalfVFov);
-        const dH = r / (heightFraction * tanHalfHFov);
-
-        // 取较大值以确保在宽/高任一方向上都不会溢出视图
-        distance = Math.max(dV, dH);
+      if (!camera || !controls) {
+        onModelRendered?.();
+        return;
       }
 
-      dir.multiplyScalar(distance);
-      const newPos = new THREE.Vector3().addVectors(target, dir);
-      camera.position.copy(newPos);
+      try {
+        const target = focusOffset.clone();
+        const currentTarget = controls.target instanceof THREE.Vector3 ? controls.target : target;
+        const viewDirection = new THREE.Vector3().subVectors(camera.position, currentTarget);
 
-      controls.target.copy(target);
-      controls.update();
-    } catch (e) {
-      console.warn("[ThreeScene] 相机重置失败:", e);
+        if (viewDirection.lengthSq() === 0) {
+          viewDirection.set(1, 1, 1);
+        }
+
+        viewDirection.normalize();
+        camera.position.copy(target.clone().add(viewDirection.multiplyScalar(fixedCameraDistance)));
+        controls.target.copy(target);
+        controls.update();
+      } catch (e) {
+        console.warn("[ThreeScene] Failed to reset camera", e);
+      }
+
+      onModelRendered?.();
+    },
+    [fixedCameraDistance, focusOffset, onModelRendered],
+  );
+
+  useEffect(() => {
+    if (modelUrl === null) {
+      setDisplayedModelUrl(null);
     }
+  }, [modelUrl]);
 
-    if (onModelRendered) onModelRendered();
-  }, [onModelRendered]);
+  const handleModelLoaded = useCallback((url: string) => {
+    setDisplayedModelUrl(url);
+  }, []);
 
   return (
-    <div className="relative w-full h-full">
-      <Canvas shadows gl={{ preserveDrawingBuffer: true }}>
-        <Suspense fallback={<LoadingPreview params={params} />}>
-          <PerspectiveCamera ref={cameraRef} makeDefault position={[14, 14, 14]} />
-          <OrbitControls ref={controlsRef} makeDefault target={[0, 0, 0]} />
+    <div className="cipher-sky-scene relative h-full w-full">
+      <Canvas shadows gl={{ alpha: true, preserveDrawingBuffer: true }}>
+        <PerspectiveCamera ref={cameraRef} makeDefault position={[14, 14, 14]} />
+        <OrbitControls ref={controlsRef} makeDefault target={[0, 0, 0]} />
 
-          {/* Neutral white lighting so white materials appear neutral */}
-          <hemisphereLight skyColor={0xffffff} groundColor={0x000000} intensity={0.06} />
-          <ambientLight color={0xffffff} intensity={0.6} />
-          <directionalLight color={0xffffff} position={[8, 12, 6]} intensity={0.95} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} />
-          <pointLight color={0xffffff} position={[-8, -6, -10]} intensity={0.18} />
-          <pointLight color={0xffffff} position={[4, 6, -6]} intensity={0.12} />
+        <hemisphereLight args={[0xffffff, 0x000000, 0.06]} />
+        <ambientLight color={0xffffff} intensity={0.6} />
+        <directionalLight color={0xffffff} position={[8, 12, 6]} intensity={0.95} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} />
+        <pointLight color={0xffffff} position={[-8, -6, -10]} intensity={0.18} />
+        <pointLight color={0xffffff} position={[4, 6, -6]} intensity={0.12} />
 
-          {/* subtle ground to catch light */}
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.2, 0]} receiveShadow>
-            <planeGeometry args={[200, 200]} />
-            <meshStandardMaterial color={0x060606} metalness={0.2} roughness={0.7} emissive={0x000000} />
-          </mesh>
+        <Suspense fallback={null}>
+          {modelUrl && modelUrl !== displayedModelUrl && <ModelPreloader url={modelUrl} onLoaded={handleModelLoaded} />}
+        </Suspense>
 
-          <Model
-            url={modelUrl}
-            params={params}
-            onRendered={handleModelRenderedInternal}
-          />
-
-          {/* 网格已移除，如需恢复请取消注释 */}
+        <Suspense fallback={displayedModelUrl ? null : <ParametricPreview params={params} />}>
+          <Model url={displayedModelUrl} params={params} onRendered={handleModelRenderedInternal} />
         </Suspense>
       </Canvas>
     </div>

@@ -1,12 +1,20 @@
+export interface ProfilePoint {
+  x: number;
+  y: number;
+}
+
 export interface SculptureParams {
-  // [TYPES: PARAMS_DEF] 如果增加了新参数，请在这里定义新字段
   slice_count: number;
   length: number;
+  wave: number;
   thickness: number;
   twist_angle: number;
+  incline: number;
+  mirror_x: boolean;
+  profile_points: ProfilePoint[];
 }
 
 export interface ChatMessage {
-  role: 'user' | 'ai';
+  role: "user" | "ai";
   content: string;
 }
