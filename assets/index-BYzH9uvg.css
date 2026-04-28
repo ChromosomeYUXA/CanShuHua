@@ -1150,13 +1150,6 @@ button, input {
   transform: translateZ(0);
   box-shadow: 0 24px 70px #0000007a, inset 0 1px #ffffff14;
 }
-.control-panel {
-  --glass-backdrop: blur(22px) saturate(120%) brightness(.72);
-  -webkit-backdrop-filter: var(--glass-backdrop);
-  background: linear-gradient(#0f172ac7, #0f172aa8), #0f172ab3;
-  border-color: #e2e8f029;
-  box-shadow: 0 24px 70px #00000094, inset 0 1px #ffffff1a;
-}
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
   .glass-panel {
     -webkit-backdrop-filter: var(--glass-backdrop);
