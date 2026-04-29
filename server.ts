@@ -368,6 +368,29 @@ function getNextModelOutputPath() {
   };
 }
 
+function cleanupGeneratedModels() {
+  const maxGeneratedModels = parsePositiveInt(process.env.MAX_GENERATED_MODELS, 30);
+  if (maxGeneratedModels <= 0) return;
+
+  try {
+    const generatedModels = fs
+      .readdirSync(modelsDir)
+      .filter((filename) => /^output-\d+-\d+\.glb$/.test(filename))
+      .map((filename) => {
+        const filePath = path.join(modelsDir, filename);
+        return { filename, filePath, mtimeMs: fs.statSync(filePath).mtimeMs };
+      })
+      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+    for (const model of generatedModels.slice(maxGeneratedModels)) {
+      fs.unlinkSync(model.filePath);
+      console.log(`[CLEANUP] Removed old generated model: ${model.filename}`);
+    }
+  } catch (error) {
+    console.warn("[CLEANUP] Failed to clean generated models:", error);
+  }
+}
+
 async function startServer() {
   dotenv.config();
   const app = express();
@@ -461,6 +484,7 @@ async function startServer() {
       const blenderTime = Date.now() - sendTime;
       
       if (success && fs.existsSync(outputPath)) {
+        cleanupGeneratedModels();
         console.log(`[PERF] 生成完成 - 总耗时: ${totalTime}ms, Blender处理: ${blenderTime}ms`);
         res.json({ success: true, modelUrl, duration: totalTime });
       } else {
